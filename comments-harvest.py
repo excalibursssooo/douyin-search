@@ -16,10 +16,10 @@ douyin 评论深度抓取(虚拟滚动 harvest, 人类模式默认)
        1天前·重庆         <- 相对时间 + IP 属地
        123               <- 点赞数
        分享 / 回复 / 展开N条回复  <- 操作按钮
-3. `...` 那一行必须跳过 — 不是截断,是 douyin 的 UI 占位符
+3. `...` 那一行必须跳过 - 不是截断,是 douyin 的 UI 占位符
 4. ab eval 返回值有"最外层双引号 + unicode escape"两层,需要 json.loads 两次
 5. localStorage 是可靠的中转(无 ab eval 输出限制)
-6. 必须串行 — ab 单 tab 单 session,多 video 不能并行
+6. 必须串行 - ab 单 tab 单 session,多 video 不能并行
 
 风控设计(默认人类模式,最低风控):
   - scroll 用 scrollBy(0, 200-500px) 模拟手指拨动,不是 scrollTop=jump
@@ -57,9 +57,16 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 
 # 路径由 paths.py 统一管理(默认 $SKILL/data/, 可用 DOUYIN_DATA_DIR 环境变量覆盖)
 from paths import COOKIE_FILE, STATE_FILE, DATA_DIR, EXPORTS_DIR, TMP_DIR, SKILL_DIR, report as report_paths
+
+try:
+    from downloader import download_for_aweme
+    HAS_DOWNLOADER = True
+except ImportError:
+    HAS_DOWNLOADER = False
 
 
 # =============================================================================
@@ -328,10 +335,10 @@ def open_video(aweme_id: str) -> bool:
     t = run_ab(["eval", "document.title"], timeout=10)
     title = t.stdout.strip().strip('"').strip("'")
     if "验证码中间页" in title:
-        err("页面是验证码中间页 — 风控触发,等 30s 再试或重跑 keepalive.py state save")
+        err("页面是验证码中间页 - 风控触发,等 30s 再试或重跑 keepalive.py state save")
         return False
     if title.startswith("抖音-") or title == "":
-        err(f"页面 title 异常: '{title[:50]}' — state 没注入,跑 keepalive.py state load/save")
+        err(f"页面 title 异常: '{title[:50]}' - state 没注入,跑 keepalive.py state load/save")
         return False
     # 额外 captcha iframe 检查
     c = run_ab(["eval",
@@ -339,7 +346,7 @@ def open_video(aweme_id: str) -> bool:
         ".filter(f => f.offsetWidth>100 && f.offsetHeight>100).length"],
         timeout=10)
     if c.stdout.strip().strip('"').strip("'") != "0":
-        err("页面有可见 captcha iframe — 风控触发,等 30s 再试")
+        err("页面有可见 captcha iframe - 风控触发,等 30s 再试")
         return False
     ok(f"页面打开成功: {title[:60]}")
     # 关闭登录弹窗
@@ -528,9 +535,16 @@ def get_video_meta(aweme_id: str) -> dict:
         return {"title": "?", "author": "?", "likes": 0, "comments_total": 0}
 
 
-def save_results(aweme_id: str, meta: dict, comments: list, output_dir: Path, mode: str):
-    """落盘 JSON + CSV"""
+def save_results(aweme_id: str, meta: dict, comments: list, output_dir: Path, mode: str,
+                 download_info: Optional[dict] = None):
+    """落盘 JSON + CSV
+
+    download_info: 来自 downloader.download_for_aweme() 的结果,会嵌入:
+      - JSON: 顶层 video.download 字段 + 顶层 download 字段
+      - CSV:  每行加 video_download 列(同视频所有行一致)
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
+    download_path = (download_info or {}).get("path") or ""
     records = []
     for c in comments:
         rel_time, location = parse_user_location(c.get("time", ""))
@@ -544,39 +558,54 @@ def save_results(aweme_id: str, meta: dict, comments: list, output_dir: Path, mo
             "digg_count": c.get("digg_count", 0),
             "relative_time": rel_time,
             "location": location,
+            "video_download": download_path,
             "scraped_at": time.strftime("%Y-%m-%d"),
         })
     json_path = output_dir / f"comments_{aweme_id}.json"
-    json_path.write_text(json.dumps({
+    json_obj = {
         "video": meta,
         "scraped_at": time.strftime("%Y-%m-%d"),
         "source": "douyin (https://www.douyin.com)",
         "scraper": f"comments-harvest.py (agent-browser virtual scroll harvest, mode={mode})",
         "comment_count": len(records),
         "comments": records,
-    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    }
+    if download_info is not None:
+        json_obj["download"] = download_info
+        # 同步到 video 块,便于 aggregate.py 直接读
+        if isinstance(json_obj.get("video"), dict):
+            json_obj["video"]["download"] = {
+                "path": download_info.get("path"),
+                "quality": download_info.get("quality"),
+                "size": download_info.get("downloaded_bytes"),
+            }
+    json_path.write_text(json.dumps(json_obj, ensure_ascii=False, indent=2), encoding="utf-8")
     csv_path = output_dir / f"comments_{aweme_id}.csv"
+    base_fields = [
+        "video_id", "video_title", "video_author", "video_likes",
+        "user", "text", "digg_count", "relative_time", "location",
+        "video_download", "scraped_at",
+    ]
     with csv_path.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=list(records[0].keys()) if records else [
-            "video_id", "video_title", "video_author", "video_likes",
-            "user", "text", "digg_count", "relative_time", "location", "scraped_at"
-        ])
+        w = csv.DictWriter(f, fieldnames=base_fields)
         w.writeheader()
         for r in records:
-            w.writerow(r)
+            w.writerow({k: r.get(k, "") for k in base_fields})
     ok(f"已写入: {json_path.name} ({json_path.stat().st_size:,} bytes) + {csv_path.name} ({csv_path.stat().st_size:,} bytes)")
     return json_path, csv_path
 
 
 def harvest_one(aweme_id: str, max_count: int, output_dir: Path,
-                mode: str = "human", warmup: bool = False) -> bool:
+                mode: str = "human", warmup: bool = False,
+                download: bool = False, download_dir: Optional[Path] = None,
+                quality: str = "play", cookie: str = "") -> bool:
     """单视频完整流程"""
     print(f"\n=== {aweme_id} (mode={mode}, warmup={warmup}, max={max_count}) ===")
     if not open_video(aweme_id):
         return False
     if warmup:
         do_warmup(aweme_id)
-        # 暖身后重新打开目标视频(因为 warmup 可能 navigate 走了)
+        # 暖身后重新打开目标视频（因为 warmup 可能 navigate 走了）
         if not open_video(aweme_id):
             return False
     comments = run_harvest(aweme_id, max_count, mode=mode)
@@ -586,7 +615,26 @@ def harvest_one(aweme_id: str, max_count: int, output_dir: Path,
     print(f"  → 共 {len(comments)} 条评论")
     meta = get_video_meta(aweme_id)
     print(f"  → 视频: {meta.get('title', '?')[:50]}... by {meta.get('author', '?')}")
-    save_results(aweme_id, meta, comments, output_dir, mode=mode)
+    # 下载视频（如果指定）
+    download_info = None
+    if download:
+        if not HAS_DOWNLOADER:
+            err("--download 需要 downloader.py 模块（检查 skill 目录完整性）")
+        elif not cookie:
+            err("--download 需要 cookie 但未提供（cookie 应从路径 / 加载）")
+        else:
+            dest = download_dir if download_dir else (output_dir / "downloads")
+            print(f"\n  → 下载视频 (quality={quality}) → {dest}")
+            download_info = download_for_aweme(
+                aweme_id=aweme_id, dest_dir=dest, cookie=cookie,
+                title_hint=meta.get("title", ""), quality=quality,
+            )
+            if download_info.get("ok"):
+                ok(f"  → 本地路径: {download_info['path']}")
+            else:
+                err(f"  → 下载失败: {download_info.get('error', '未知错误')}")
+    save_results(aweme_id, meta, comments, output_dir, mode=mode,
+                 download_info=download_info)
     return True
 
 
@@ -609,7 +657,13 @@ def main():
     ap.add_argument("--interval", type=float, default=25.0,
                     help="视频间 base sleep 秒数(人类模式默认 25, ±30%% jitter → 实际 17-32s)")
     ap.add_argument("--no-jitter", action="store_true",
-                    help="禁用 video 间的随机 jitter(测试用)")
+                    help="禁用 video 间的随机 jitter（测试用）")
+    ap.add_argument("--download", action="store_true",
+                    help="下载视频到本地（1080p 无水印），路径写入每个 comments JSON/CSV")
+    ap.add_argument("--download-dir",
+                    help="视频下载目录（默认: <--output>/downloads/）")
+    ap.add_argument("--quality", choices=["play", "download"], default="play",
+                    help="下载画质: play=1080p 无水印（默认）/ download=720p 带水印")
     args = ap.parse_args()
 
     # 解析 aweme_id
@@ -634,10 +688,36 @@ def main():
 
     mode = "aggressive" if args.aggressive else "human"
     output_dir = Path(args.output)
+    download_dir = Path(args.download_dir) if args.download_dir else None
+    cookie = ""
+    if args.download:
+        # 读 cookie 为下载需要（与 fetch.py 同样的 Netscape 解析逻辑）
+        cookie_path = Path(COOKIE_FILE)
+        if cookie_path.exists():
+            raw = cookie_path.read_text()
+            parts = []
+            for line in raw.split("\n"):
+                line = line.strip()
+                if not line or line.startswith("#") or line.startswith("//"):
+                    continue
+                if "\t" in line:
+                    cols = line.split("\t")
+                    if len(cols) >= 7:
+                        parts.append(f"{cols[5]}={cols[6]}")
+                    else:
+                        parts.append(f"{cols[-2]}={cols[-1]}")
+                elif "=" in line:
+                    parts.append(line)
+            cookie = "; ".join(parts)
+        if not cookie:
+            err("--download 需要 cookie，先跑 keepalive.py setup → inject")
+            sys.exit(2)
     success = 0
     for i, aweme_id in enumerate(ids):
         if harvest_one(aweme_id, args.max, output_dir,
-                       mode=mode, warmup=args.warmup):
+                       mode=mode, warmup=args.warmup,
+                       download=args.download, download_dir=download_dir,
+                       quality=args.quality, cookie=cookie):
             success += 1
         # 视频间 jitter (跳过最后一个)
         if i < len(ids) - 1 and not args.no_jitter:

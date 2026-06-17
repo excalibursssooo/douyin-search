@@ -30,9 +30,15 @@ except ImportError:
     print("❌ 缺 requests: pip install requests", file=sys.stderr)
     sys.exit(1)
 
+try:
+    from downloader import download_for_aweme
+    HAS_DOWNLOADER = True
+except ImportError:
+    HAS_DOWNLOADER = False
+
 
 # === 常量(路径由 paths.py 统一管理)===
-from paths import COOKIE_FILE, STATE_FILE, DATA_DIR, TMP_DIR
+from paths import COOKIE_FILE, STATE_FILE, DATA_DIR, TMP_DIR, EXPORTS_DIR
 
 # 抖音 web 端通用查询参数(从 XHR 抓的,不带会被 verify_check 拦截)
 COMMON_PARAMS = {
@@ -333,12 +339,37 @@ def cmd_video(args, cookie: str):
             err(f"detail API 失败 ({detail_err or '空响应'}),search fallback 也失败: {e}")
             v = {}
     # 落盘原始 JSON (如果有)
+    download_info = None
+    if args.download:
+        if not HAS_DOWNLOADER:
+            err("--download 需要 downloader.py 模块(检查 skill 目录完整性)")
+            sys.exit(4)
+        # 决定下载目录: --download-dir > <raw-out 父目录>/downloads/ > <EXPORTS_DIR>/downloads/
+        if args.download_dir:
+            dest_dir = Path(args.download_dir)
+        elif args.raw_out:
+            dest_dir = Path(args.raw_out).resolve().parent / "downloads"
+        else:
+            dest_dir = EXPORTS_DIR / "downloads"
+        print(f"\n=== 下载视频 (quality={args.quality}) → {dest_dir} ===")
+        download_info = download_for_aweme(
+            aweme_id=aweme_id, dest_dir=dest_dir, cookie=cookie,
+            title_hint=v.get("desc", ""), quality=args.quality,
+        )
+        if not download_info.get("ok"):
+            err(f"下载失败: {download_info.get('error', '未知错误')}")
+        else:
+            ok(f"本地路径: {download_info['path']}")
     if args.raw_out:
         out = {"aweme_id": aweme_id, "detail_source": detail_source}
         if detail_resp is not None:
             out["detail_response"] = detail_resp
+        if download_info is not None:
+            out["download"] = download_info
         Path(args.raw_out).write_text(json.dumps(out, ensure_ascii=False, indent=2))
         ok(f"原始 JSON 已落盘: {args.raw_out}")
+        if download_info and download_info.get("path"):
+            ok(f"视频本地路径(也写在 JSON 的 download.path 字段): {download_info['path']}")
     # 2) 输出元信息
     if v:
         a = v.get("author") or {}
@@ -505,6 +536,12 @@ def main():
     p.add_argument("query", help="aweme_id 或视频 URL")
     p.add_argument("--comments", type=int, default=5)
     p.add_argument("--raw-out", help="落盘原始 JSON")
+    p.add_argument("--download", action="store_true",
+                   help="下载视频到本地(无水印 1080p),路径写入 --raw-out JSON")
+    p.add_argument("--download-dir",
+                   help=f"视频下载目录(默认: <--raw-out 父目录>/downloads/ 或 {TMP_DIR.parent}/downloads/)")
+    p.add_argument("--quality", choices=["play", "download"], default="play",
+                   help="下载画质: play=1080p 无水印(默认) / download=720p 带水印")
 
     args = ap.parse_args()
     cookie = load_cookie()

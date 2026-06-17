@@ -15,7 +15,8 @@ douyin-search/
 ├── LICENSE
 ├── douyin-fetch.py                # 主入口: search / user / video
 ├── comments-harvest.py            # 深度评论抓取
-├── aggregate.py                   # 跨次会话聚合去重(search + harvest 后处理)
+├── aggregate.py                   # 跨次会话聚合去重（search + harvest 后处理）
+├── downloader.py                  # 视频下载 helper（detail API → play_addr URL → 流式下载）
 ├── keepalive.py                   # cookies / state 管理
 ├── paths.py                       # ⭐ 路径统一管理(所有脚本都引)
 ├── docs/

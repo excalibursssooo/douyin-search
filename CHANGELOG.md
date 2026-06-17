@@ -5,10 +5,29 @@ All notable changes to douyin-search will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-06-18
+
+### Added
+- **视频下载选项**: `douyin-fetch.py video --download` 和 `comments-harvest.py --download` 都新增了视频下载能力
+  - 默认下载 1080p 无水印版（`play_addr`），可切 `download_addr` 720p 带水印（`--quality download`）
+  - 下载路径默认在 `--output/downloads/` 或 `--raw-out` 所在目录的 `downloads/` 子目录
+  - **所有产物均在 `$SKILL/data/` 内**，不会散落到 `/tmp/`
+- **`downloader.py`**: 独立 helper 模块，被 `douyin-fetch.py` 和 `comments-harvest.py` 复用。负责 detail API → play_addr URL → 流式下载，带必须 `Referer: https://www.douyin.com/` 头
+- **JSON / CSV 嵌本地路径**: 每个 `comments_<id>.json` 顶层多 `download` 字段；`comments_<id>.csv` 多 `video_download` 列；`douyin-fetch.py video --raw-out x.json` 的 `x.json` 顶层也加 `download` 字段
+- **`aggregate.py` 增强**:
+  - `aggregate_videos.csv` 新增 `download_path` 列
+  - `aggregate_comments_all.csv` 新增 `video_download` 列
+  - 自动从 `<export_dir>/downloads/` 目录反向补老 session 的下载路径（不限使用 `--download` 采的数据都能补）
+  - `aggregate_summary.json` 新增 `videos_with_local_download` 计数
+
+### Changed
+- **SKILL.md / README.md / pitfalls.md**: 更新使用说明、输出示例、"明确不会做"列表（去掉"视频下载"限制）
+- **`comments-harvest.py` CSV 字段名调整**: 新增 `video_download` 列（其余不变）
+
 ## [1.1.0] - 2026-06-17
 
 ### Added
-- **`aggregate.py`**: 跨次会话聚合去重工具 — agent 调一次命令,产出
+- **`aggregate.py`**: 跨次会话聚合去重工具 — agent 调一次命令，产出
   - `aggregate_videos.csv` 唯一视频清单(按赞数排序,带 matched_keywords)
   - `aggregate_comments_all.csv` 全部去重评论(单表)
   - `aggregate_summary.json` 统计(去重率 / 采样数)
@@ -48,5 +67,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 多个 harvest 命令必须串行,ab 单 tab 单 session
 - harvest 单次 eval 不能 > 30s,否则 ab busy 5 次重试都失败
 
+[1.2.0]: https://github.com/excalibursssooo/douyin-search/releases/tag/v1.2.0
 [1.1.0]: https://github.com/excalibursssooo/douyin-search/releases/tag/v1.1.0
 [1.0.0]: https://github.com/excalibursssooo/douyin-search/releases/tag/v1.0.0

@@ -1,4 +1,4 @@
-# 开发者参考 — Pitfalls & 内部细节
+# 开发者参考 - Pitfalls & 内部细节
 
 > **本文件是开发参考,不是 agent 决策文档。** agent 读 SKILL.md 就够。
 > 这里收集:踩过的反爬坑、脚本实现细节、docker/CI 部署、目录结构说明。
@@ -6,18 +6,19 @@
 ## 数据路径
 
 ```
-$SKILL/                              ← skill 根(可 git clone 到任何位置)
-├── douyin-fetch.py          HTTP API 抓取(search / user / video)
-├── comments-harvest.py      ab 虚拟滚动 harvest(单/多视频)
+$SKILL/                              ← skill 根（可 git clone 到任何位置）
+├── douyin-fetch.py          HTTP API 抓取（search / user / video）
+├── comments-harvest.py      ab 虚拟滚动 harvest（单/多视频）
 ├── aggregate.py             跨次会话聚合去重
+├── downloader.py            视频下载 helper（detail API → play_addr URL → 流式下载）
 ├── keepalive.py             cookie / ab state 维护
 ├── paths.py                 路径统一管理
-├── SKILL.md                 agent 入口(必读)
+├── SKILL.md                 agent 入口（必读）
 ├── docs/pitfalls.md         ← 本文件
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
 ├── README.md
-└── data/                    运行时数据(cookie / state / exports)
+└── data/                    运行时数据（cookie / state / exports / downloads）
 ```
 
 **路径解析优先级**(从高到低):
@@ -76,7 +77,16 @@ likes
 
 ### 脚本已自动处理
 - `state load/save/check` 自动清理 daemon 防 `--state` 抢占
-- `video` 命令自动检测 captcha,遇风控明确报错而非返回空
-- 视频元信息抓不到时显式标 `search-fallback`,不静默吞错
-- `--raw-out` 落盘完整 raw JSON(含 detail API 响应)
-- aggregate.py 自动跨 search 去重 + 跨 harvest 合并 + 评论内去重(video_id+user+text 三元组)
+- `video` 命令自动检测 captcha，遇风控明确报错而非返回空
+- 视频元信息抓不到时显式标 `search-fallback`，不静默吞错
+- `--raw-out` 落盘完整 raw JSON（含 detail API 响应）
+- aggregate.py 自动跨 search 去重 + 跨 harvest 合并 + 评论内去重（video_id+user+text 三元组）
+- `--download` 下载的视频路径同时嵌入到 `--raw-out` JSON 顶层 `download` 字段 / `comments-harvest.py` 输出的 `video.download` 字段 / 每个 comments CSV 的 `video_download` 列；`aggregate.py` 会从 `<export_dir>/downloads/` 目录反向补老 session 的路径
+
+### 视频下载（1.2.0+）
+- `play_addr`（默认）和 `download_addr` 都是 detail API 直接给的公开 URL，不涉及 m3u8 / 镜像
+- **必须 `Referer: https://www.douyin.com/`**，否则 403 — `downloader.py` 已带
+- URL 里 `dy_q=` 是过期时间戳，默认 ~2 小时有效；fetch → download 必须在同一脚本调用里连贯完成
+- 1080p 无水印（play_addr）默认 100~200MB / 视频；720p 带水印（download_addr）约一半
+- 已存在的本地文件跳过重下（`download.cached=true`）— 重复跑 harvest + download 不会浪费带宽
+- **所有产物均在 `$SKILL/data/exports/<session>/downloads/`，不会散落到 `/tmp/`**

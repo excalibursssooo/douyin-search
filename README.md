@@ -61,6 +61,11 @@ python3 $SKILL/comments-harvest.py 7650453175333342470 --max 200
 
 # 批量串行
 python3 $SKILL/comments-harvest.py <id1> <id2> <id3> --max 150
+
+# 视频下载(1.2.0+)
+python3 $SKILL/douyin-fetch.py video 7650453175333342470 --download --raw-out x.json
+python3 $SKILL/comments-harvest.py 7650453175333342470 --download --output $SESSION/comments
+# → 下载文件在 <--output>/downloads/ 或 <--raw-out 父目录>/downloads/(默认 1080p 无水印)
 ```
 
 ---
@@ -75,6 +80,8 @@ python3 $SKILL/comments-harvest.py <id1> <id2> <id3> --max 150
 | `douyin-fetch.py video <id> --comments N` | HTTP API + ab | 视频详情 + N 条热评 |
 | **`comments-harvest.py <id> --max N`** | ab 虚拟滚动 | **深度评论(100~500 条),JSON + CSV** |
 | **`comments-harvest.py <id1> <id2> ...`** | ab 串行 | **批量深度评论** |
+| `comments-harvest.py <id> --download` | ab + HTTP | **深度评论 + 视频下载(1.2.0+)** |
+| `douyin-fetch.py video <id> --download` | HTTP | **单视频元信息 + 评论 + 下载(1.2.0+)** |
 | **`aggregate.py <export_dir>`** | 本地 | **跨次聚合去重**(videos.csv / comments_all.csv / summary.json) |
 
 `comments-harvest.py` 参数:
@@ -87,17 +94,30 @@ python3 $SKILL/comments-harvest.py <id1> <id2> <id3> --max 150
 | `--warmup` | 关 | 抓前先刷 5-15s 推荐流(更安全) |
 | `--interval N` | 25 | 视频间 base sleep 秒数(±30% jitter) |
 | `--no-jitter` | 关 | 禁用 jitter(测试用) |
+| `--download` | 关 | 同时下载视频到 `<--output>/downloads/` |
+| `--download-dir DIR` | `<--output>/downloads/` | 自定义下载目录 |
+| `--quality {play,download}` | play | 画质: play=1080p 无水印 / download=720p 带水印 |
+
+`douyin-fetch.py video` 参数(1.2.0+ 新增下载相关):
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `--download` | 关 | 下载视频到本地 |
+| `--download-dir DIR` | `<--raw-out 父目录>/downloads/` | 自定义下载目录 |
+| `--quality {play,download}` | play | 画质选择 |
 
 ---
 
 ## 输出格式
 
-`comments-harvest.py` 落到 `--output` 目录,每个视频两个文件:
+`comments-harvest.py` 落到 `--output` 目录,每个视频两个文件;加 `--download` 后同目录下多一个 `downloads/` 文件夹:
 
 ```
 exports/
 ├── comments_7650771029597359394.json
-└── comments_7650771029597359394.csv
+├── comments_7650771029597359394.csv
+└── downloads/                            ← --download 才有
+    └── 7650771029597359394_<slug>_play.mp4
 ```
 
 **JSON 结构**:
@@ -108,7 +128,20 @@ exports/
     "author": "@xxx",
     "likes": 229000,
     "comments_total": 7084,
-    "url": "https://www.douyin.com/video/..."
+    "url": "https://www.douyin.com/video/...",
+    "download": {                              ← --download 才有
+      "path": "/.../downloads/7650771029597359394_xxx_play.mp4",
+      "quality": "play",
+      "size": 157946391
+    }
+  },
+  "download": {                                ← --download 才有
+    "aweme_id": "7650771029597359394",
+    "ok": true,
+    "path": "/.../downloads/7650771029597359394_xxx_play.mp4",
+    "downloaded_bytes": 157946391,
+    "http_code": 200,
+    "cached": false
   },
   "comment_count": 148,
   "comments": [
@@ -117,13 +150,14 @@ exports/
       "text": "评论内容",
       "digg_count": 692,
       "relative_time": "2天前",
-      "location": "北京"
+      "location": "北京",
+      "video_download": "/.../downloads/7650771029597359394_xxx_play.mp4"
     }
   ]
 }
 ```
 
-**CSV 字段**: `video_id`, `video_title`, `video_author`, `video_likes`, `user`, `text`, `digg_count`, `relative_time`, `location`, `scraped_at`
+**CSV 字段**: `video_id`, `video_title`, `video_author`, `video_likes`, `user`, `text`, `digg_count`, `relative_time`, `location`, `video_download`, `scraped_at`
 
 ---
 
@@ -142,7 +176,7 @@ exports/
 
 **明确不会做**:
 - 点赞 / 发评论 / 关注(只读)
-- 视频下载(另找工具)
+- m3u8 解密 / 镜像站抓取 / 串流录制(只通过抖音公开的 `play_addr` / `download_addr` 下载)
 
 ---
 
