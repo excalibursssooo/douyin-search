@@ -21,7 +21,7 @@ openclaw skills install douyin-search
 
 **前置依赖**:
 - Python 3.8+
-- [agent-browser](https://github.com/earendil-works/pi-coding-agent) skill 已安装(用于评论抓取)
+- [agent-browser](https://github.com/vercel-labs/agent-browser) skill 已安装(用于评论抓取)
 - 抖音账号的 cookies(见下方"快速开始")
 
 ---

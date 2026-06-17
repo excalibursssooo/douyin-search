@@ -1,16 +1,26 @@
 ---
 name: douyin-search
-description: 抖音内容抓取（搜索视频/用户/拿作品/看评论）。走 HTTP API + agent-browser 抓评论虚拟滚动 harvest（需登录 cookie）。零依赖、跨设备、支持最低风控的人类模式。
+description: 抖音内容抓取（搜索视频/用户/拿作品/看评论）。HTTP API 拿基础数据，agent-browser 抓评论虚拟滚动 harvest（需登录 cookie）。零依赖、跨设备、支持最低风控的人类模式。只读 skill，不修改 douyin 任何数据。
+version: 1.0.0
+emoji: "🎵"
+homepage: https://github.com/excalibursssooo/douyin-search
 metadata:
   openclaw:
     requires:
-      env: []
       bins:
         - python3
         - agent-browser
-      primaryBin: python3
-    primaryEnv: ""
-    # 该 skill 是只读,不修改 douyin 任何数据
+    envVars:
+      - name: DOUYIN_COOKIE_FILE
+        required: false
+        description: 抖音登录 cookies 路径（评论 harvest 必需）。默认 $SKILL/data/cookies.txt；老的 /tmp/douyin/cookies.txt 也兼容。
+      - name: DOUYIN_DATA_DIR
+        required: false
+        description: skill 运行时数据目录（覆盖默认 $SKILL/data/）。给 docker / CI 用。
+      - name: SKILL
+        required: false
+        description: skill 根目录绝对路径，命令示例里用得到（agent 自填）。
+    primaryEnv: DOUYIN_COOKIE_FILE
 ---
 
 # douyin-search
