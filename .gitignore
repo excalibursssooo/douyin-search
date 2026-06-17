@@ -1,0 +1,98 @@
+# douyin-search skill .gitignore
+# =====================================
+# skill 自身(代码/文档/脚本/.github/) 100% 跟 git 走
+# 运行时数据(凭证/缓存/抓取结果/中间文件) 全部排除
+
+# ===== 运行时数据(data/ 子内容排除,只留 .gitkeep)=====
+# 用 data/* 避免被 "data/" 匹配上 .gitkeep
+data/*
+data/.*
+# 例外:必须保留 .gitkeep 让空 data/ 目录能进 git
+!data/.gitkeep
+# 显式列一下 data/ 下的子目录(更清晰)
+data/cookies-raw.txt
+data/cookies.txt
+data/cookies.txt.old
+data/state/
+data/exports/
+data/cache/
+
+# ===== 老的 /tmp/douyin/ 路径数据(若迁移过来)=====
+# macOS 上 /tmp → /private/tmp,用通配
+/tmp/douyin/
+/private/tmp/douyin/
+
+# ===== harvest 临时中间文件 =====
+# (理论上不会进 data/ 但万一)
+/tmp/douyin/_*.js
+/private/tmp/douyin/_*.js
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ===== 虚拟环境 =====
+venv/
+env/
+ENV/
+.venv/
+.env/
+.env.local
+.env.*.local
+
+# ===== 编辑器/IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ===== 日志 =====
+*.log
+logs/
+*.pid
+
+# ===== 备份文件 =====
+*.bak
+*.backup
+*.old
+*.orig
+*.rej
+
+# ===== 测试/覆盖率 =====
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+
+# ===== 老的 cookies 备份(防御性) =====
+data/cookies*.old
+data/cookies*.bak
+data/cookies*.backup

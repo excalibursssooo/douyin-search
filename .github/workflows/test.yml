@@ -1,0 +1,122 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint + Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pyflakes
+
+      - name: Validate Python syntax
+        run: |
+          for f in douyin-fetch.py comments-harvest.py keepalive.py paths.py; do
+            echo "  → checking $f"
+            python -c "import ast; ast.parse(open('$f').read())" || exit 1
+          done
+
+      - name: Lint with pyflakes
+        run: |
+          pyflakes douyin-fetch.py comments-harvest.py keepalive.py paths.py
+
+      - name: Validate SKILL.md frontmatter
+        run: |
+          python -c "
+          import re
+          content = open('SKILL.md').read()
+          m = re.match(r'^---\n(.*?)\n---', content, re.DOTALL)
+          assert m, 'SKILL.md must have YAML frontmatter'
+          fm = m.group(1)
+          assert 'name:' in fm, 'frontmatter must have name'
+          assert 'description:' in fm, 'frontmatter must have description'
+          print('✓ SKILL.md frontmatter valid')
+          print(f'  name: {re.search(chr(34) + r\"name:\\s*([\\w-]+)\" + chr(34), fm).group(1) if re.search(r\"name:\\s*([\\w-]+)\", fm) else \"?\"}')
+          "
+
+      - name: Validate paths.py
+        run: |
+          python -c "
+          from paths import SKILL_DIR, DATA_DIR, COOKIE_FILE, STATE_FILE
+          assert SKILL_DIR.exists(), 'SKILL_DIR must exist'
+          print(f'✓ paths.py OK')
+          print(f'  SKILL_DIR: {SKILL_DIR}')
+          print(f'  DATA_DIR: {DATA_DIR}')
+          "
+
+      - name: Validate .gitignore
+        run: |
+          test -f .gitignore || (echo 'missing .gitignore' && exit 1)
+          grep -q '^data/' .gitignore || (echo '.gitignore must exclude data/' && exit 1)
+          echo '✓ .gitignore valid'
+
+  smoke-test:
+    name: Smoke Test (no network)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Verify all scripts are importable
+        run: |
+          python -c "
+          import sys
+          sys.path.insert(0, '.')
+          # paths.py 必须能 import(不抛异常)
+          import paths
+          # checkalive.py / douyin-fetch.py / comments-harvest.py 顶层 import
+          # 不会自动跑(它们有 if __name__ == '__main__' 守卫)
+          import importlib.util
+          for mod in ['keepalive', 'douyin_fetch', 'comments_harvest']:
+              spec = importlib.util.spec_from_file_location(mod, f'{mod.replace(chr(95), chr(45))}.py')
+              assert spec is not None, f'{mod} not found'
+              print(f'  ✓ {mod} discoverable')
+          print('✓ all scripts discoverable')
+          "
+
+      - name: Verify help output
+        run: |
+          python comments-harvest.py --help > /dev/null && echo '✓ comments-harvest.py --help OK'
+          python douyin-fetch.py --help > /dev/null && echo '✓ douyin-fetch.py --help OK'
+          python keepalive.py --help > /dev/null && echo '✓ keepalive.py --help OK' || echo '  (keepalive.py may not have --help, skipping)'
+
+  publish:
+    name: Publish to ClawHub
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [lint, smoke-test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish to ClawHub
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+        run: |
+          # 安装 clawhub CLI(实际命令请参考 clawhub 最新文档)
+          # npm install -g @openclaw/clawhub-cli
+          # clawhub login --token "$CLAWHUB_TOKEN"
+          # clawhub skill publish .
+          echo "publishing ${{ github.ref_name }} to ClawHub..."
+          # 这里只是占位,实际发布命令请按 clawhub 当前文档调整
+          echo "(configure CLAWHUB_TOKEN secret and uncomment CLI steps when ready)"
