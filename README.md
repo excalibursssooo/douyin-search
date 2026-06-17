@@ -75,6 +75,7 @@ python3 $SKILL/comments-harvest.py <id1> <id2> <id3> --max 150
 | `douyin-fetch.py video <id> --comments N` | HTTP API + ab | 视频详情 + N 条热评 |
 | **`comments-harvest.py <id> --max N`** | ab 虚拟滚动 | **深度评论(100~500 条),JSON + CSV** |
 | **`comments-harvest.py <id1> <id2> ...`** | ab 串行 | **批量深度评论** |
+| **`aggregate.py <export_dir>`** | 本地 | **跨次聚合去重**(videos.csv / comments_all.csv / summary.json) |
 
 `comments-harvest.py` 参数:
 

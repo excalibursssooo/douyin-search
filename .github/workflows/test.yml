@@ -25,14 +25,14 @@ jobs:
 
       - name: Validate Python syntax
         run: |
-          for f in douyin-fetch.py comments-harvest.py keepalive.py paths.py; do
+          for f in douyin-fetch.py comments-harvest.py aggregate.py keepalive.py paths.py; do
             echo "  → checking $f"
             python -c "import ast; ast.parse(open('$f').read())" || exit 1
           done
 
       - name: Lint with pyflakes
         run: |
-          pyflakes douyin-fetch.py comments-harvest.py keepalive.py paths.py
+          pyflakes douyin-fetch.py comments-harvest.py aggregate.py keepalive.py paths.py
 
       - name: Validate SKILL.md frontmatter
         run: |
@@ -85,10 +85,10 @@ jobs:
           sys.path.insert(0, '.')
           # paths.py 必须能 import(不抛异常)
           import paths
-          # checkalive.py / douyin-fetch.py / comments-harvest.py 顶层 import
+          # checkalive.py / douyin-fetch.py / comments-harvest.py / aggregate.py 顶层 import
           # 不会自动跑(它们有 if __name__ == '__main__' 守卫)
           import importlib.util
-          for mod in ['keepalive', 'douyin_fetch', 'comments_harvest']:
+          for mod in ['keepalive', 'douyin_fetch', 'comments_harvest', 'aggregate']:
               spec = importlib.util.spec_from_file_location(mod, f'{mod.replace(chr(95), chr(45))}.py')
               assert spec is not None, f'{mod} not found'
               print(f'  ✓ {mod} discoverable')
@@ -100,6 +100,7 @@ jobs:
           python comments-harvest.py --help > /dev/null && echo '✓ comments-harvest.py --help OK'
           python douyin-fetch.py --help > /dev/null && echo '✓ douyin-fetch.py --help OK'
           python keepalive.py --help > /dev/null && echo '✓ keepalive.py --help OK' || echo '  (keepalive.py may not have --help, skipping)'
+          python aggregate.py --help > /dev/null && echo '✓ aggregate.py --help OK'
 
   publish:
     name: Publish to ClawHub

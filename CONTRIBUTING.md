@@ -8,15 +8,18 @@
 
 ```
 douyin-search/
-├── SKILL.md                       # skill frontmatter + 用户文档
+├── SKILL.md                       # skill frontmatter + agent 决策入口(128 行)
 ├── README.md                      # GitHub 产品页
 ├── CONTRIBUTING.md                # ← 你在这里
 ├── CHANGELOG.md
 ├── LICENSE
 ├── douyin-fetch.py                # 主入口: search / user / video
 ├── comments-harvest.py            # 深度评论抓取
+├── aggregate.py                   # 跨次会话聚合去重(search + harvest 后处理)
 ├── keepalive.py                   # cookies / state 管理
 ├── paths.py                       # ⭐ 路径统一管理(所有脚本都引)
+├── docs/
+│   └── pitfalls.md                # 开发者参考(目录结构、反爬坑、脚本实现细节)
 ├── .gitignore
 ├── .github/workflows/test.yml     # CI: lint + smoke test + publish
 └── data/                          # 运行时数据(.gitignore 排除,只留 .gitkeep)

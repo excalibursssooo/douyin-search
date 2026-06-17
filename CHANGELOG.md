@@ -5,6 +5,22 @@ All notable changes to douyin-search will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-06-17
+
+### Added
+- **`aggregate.py`**: 跨次会话聚合去重工具 — agent 调一次命令,产出
+  - `aggregate_videos.csv` 唯一视频清单(按赞数排序,带 matched_keywords)
+  - `aggregate_comments_all.csv` 全部去重评论(单表)
+  - `aggregate_summary.json` 统计(去重率 / 采样数)
+  - 自动跨 search-*.json 去重 + 跨 comments/*.json 合并 + 评论内去重(video_id+user+text 三元组)
+- **`docs/pitfalls.md`**: 开发者参考手册(目录结构、反爬坑、脚本实现细节)
+- **故障排查**: 明确 "captcha 中间页 + state 实际不可用" 的组合症状 → `close && sleep && state save` 修复(避免无意义的 sleep 等待)
+
+### Changed
+- **SKILL.md**: 217 行 → 128 行(-41%),只留 agent 决策路径上的信息;实现细节 / 反爬坑 / 目录树外移到 `docs/pitfalls.md`
+- **`典型工作流` 小节**: 明确 "agent 唯一要决定的事 = 关键词 + 视频 id;其他是 skill 自己的事",把责任边界画清楚
+- **30 秒上手**: 合并了原 `命令速查` 表(避免重复),所有命令一行速记
+
 ## [1.0.0] - 2026-06-17
 
 ### Added
@@ -32,4 +48,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 多个 harvest 命令必须串行,ab 单 tab 单 session
 - harvest 单次 eval 不能 > 30s,否则 ab busy 5 次重试都失败
 
-[1.0.0]: https://github.com/your-username/douyin-search/releases/tag/v1.0.0
+[1.1.0]: https://github.com/excalibursssooo/douyin-search/releases/tag/v1.1.0
+[1.0.0]: https://github.com/excalibursssooo/douyin-search/releases/tag/v1.0.0
